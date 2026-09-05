@@ -56,16 +56,22 @@ async function registerBot(freeBotsStore, { botId: requestedBotId, name, product
   const botId = normalizeBotId(requestedBotId) || generateBotId(name);
   const token = generateToken();
 
+  // Se este botId ja existe (reregistro: ex. o Bot Free perdeu o token local e
+  // precisou se registrar de novo, mas manteve o mesmo bot_id persistido), o
+  // registro NUNCA deve resetar o estado de ativo/bloqueado definido pelo painel
+  // do Manager. So um botId realmente novo comeca com active=true/blocked=false.
+  const existing = await freeBotsStore.get(botId);
+
   const bot = await freeBotsStore.upsert(botId, {
-    name: name || botId,
-    product: product || null,
-    version: normalizeMetadata(version),
+    name: name || existing?.name || botId,
+    product: product || existing?.product || null,
+    version: normalizeMetadata(version) || existing?.version || null,
     type: "free",
     tokenHash: hashToken(token),
-    active: true,
-    enabled: true,
-    blocked: false,
-    guilds: [],
+    active: existing ? existing.active : true,
+    enabled: existing ? existing.active : true,
+    blocked: existing ? existing.blocked : false,
+    guilds: existing?.guilds || [],
     status: "online",
     lastSeenAt: new Date().toISOString(),
     lastError: null

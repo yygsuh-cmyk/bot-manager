@@ -55,6 +55,9 @@ function createFreeBotRoutes({ freeBotsStore, freeBotRegistrationKey, logger }) 
       return res.status(201).json({
         botId: bot.botId,
         token,
+        active: bot.active,
+        enabled: bot.enabled,
+        blocked: bot.blocked,
         message: "Guarde este token com seguranca - ele nao sera mostrado novamente."
       });
     } catch (error) {
