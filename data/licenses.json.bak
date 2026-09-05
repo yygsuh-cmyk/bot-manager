@@ -1,0 +1,69 @@
+{
+  "licenses": {
+    "ZYON-ZRVF-UVVU-J7U4": {
+      "key": "ZYON-ZRVF-UVVU-J7U4",
+      "durationDays": 50,
+      "status": "revoked",
+      "guildId": "1480988098203488306",
+      "guildName": "ZYON BOTS",
+      "userId": "1353068952955256904",
+      "userName": "vzz0902_27633",
+      "activatedAt": "2026-08-30T20:47:20.317Z",
+      "expiresAt": "2026-10-19T20:47:20.317Z",
+      "createdAt": "2026-08-30T20:46:59.559Z",
+      "updatedAt": "2026-09-02T05:58:38.860Z"
+    },
+    "ZYON-IN33-QHTR-CCY1": {
+      "key": "ZYON-IN33-QHTR-CCY1",
+      "durationDays": 1,
+      "status": "pending",
+      "guildId": null,
+      "guildName": null,
+      "userId": null,
+      "userName": null,
+      "activatedAt": null,
+      "expiresAt": null,
+      "createdAt": "2026-08-30T20:57:10.693Z",
+      "updatedAt": "2026-08-30T20:57:10.693Z"
+    },
+    "ZYON-ZLQR-TZY1-CBVW": {
+      "key": "ZYON-ZLQR-TZY1-CBVW",
+      "durationDays": 2,
+      "status": "pending",
+      "guildId": null,
+      "guildName": null,
+      "userId": null,
+      "userName": null,
+      "activatedAt": null,
+      "expiresAt": null,
+      "createdAt": "2026-08-30T21:14:08.670Z",
+      "updatedAt": "2026-08-30T21:14:08.671Z"
+    },
+    "ZYON-S2YD-BUWJ-F1LP": {
+      "key": "ZYON-S2YD-BUWJ-F1LP",
+      "durationDays": 30,
+      "status": "revoked",
+      "guildId": null,
+      "guildName": null,
+      "userId": null,
+      "userName": null,
+      "activatedAt": null,
+      "expiresAt": null,
+      "createdAt": "2026-08-30T21:31:54.354Z",
+      "updatedAt": "2026-09-02T05:58:58.453Z"
+    },
+    "ZYON-J8TV-53KP-6VA9": {
+      "key": "ZYON-J8TV-53KP-6VA9",
+      "durationDays": 1,
+      "status": "pending",
+      "guildId": null,
+      "guildName": null,
+      "userId": null,
+      "userName": null,
+      "activatedAt": null,
+      "expiresAt": null,
+      "createdAt": "2026-08-30T21:40:15.847Z",
+      "updatedAt": "2026-08-30T21:40:15.847Z"
+    }
+  }
+}

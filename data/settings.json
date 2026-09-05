@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "guildId": "1480988098203488306",
+  "clientId": "1496704638202679336",
+  "provider": "discloud",
+  "apiToken": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjE0NDE3ODE3NDYxMzA3NTE2MTgiLCJrZXkiOiI1ZmIwY2JhM2ZiNWZmOWVlODc4ZjY5OGQxMzVlIn0.P7VgFu6bb5TZ7n4YKEVXpTARrK9ZWOsF6qvOWZs-M-c",
+  "defaultAppId": "1770859753358",
+  "providerTokens": {
+    "squarecloud": "",
+    "discloud": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjE0NDE3ODE3NDYxMzA3NTE2MTgiLCJrZXkiOiI1ZmIwY2JhM2ZiNWZmOWVlODc4ZjY5OGQxMzVlIn0.P7VgFu6bb5TZ7n4YKEVXpTARrK9ZWOsF6qvOWZs-M-c"
+  },
+  "defaultAppByProvider": {
+    "squarecloud": "",
+    "discloud": "1770859753358"
+  },
+  "adminUserIds": [
+    "1353068952955256904"
+  ],
+  "updatedAt": "2026-02-12T01:42:56.354Z"
+}

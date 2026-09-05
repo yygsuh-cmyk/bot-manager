@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "visual": {
+    "title": "Zyon Bot Manager",
+    "description": "Sistema visual profissional para gerenciar bots, licencas, produtos, anuncios e logs.",
+    "color": "#2b87ff",
+    "successColor": "#57f287",
+    "dangerColor": "#ed4245",
+    "bannerUrl": "",
+    "thumbnailUrl": "",
+    "footer": "Zyon Bot Manager"
+  },
+  "logChannels": {
+    "activation": "1505045195803201617",
+    "key_generation": "",
+    "license_expiration": "",
+    "command_usage": "",
+    "announcement_sent": "",
+    "errors": "",
+    "bot_added": "",
+    "purchases": "",
+    "tickets": "",
+    "system": ""
+  },
+  "announcements": [],
+  "updatedAt": "2026-08-30T20:46:28.807Z"
+}
