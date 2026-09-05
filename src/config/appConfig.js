@@ -49,7 +49,11 @@ const config = {
   // Chave usada pelo FUTURO Bot Free para se registrar no Manager pela primeira
   // vez (POST /freebot/register). Depois do registro, o Manager emite um token
   // proprio por instancia, que passa a ser usado nas chamadas seguintes.
-  freeBotRegistrationKey: process.env.FREE_BOT_REGISTRATION_KEY ?? ""
+  freeBotRegistrationKey: process.env.FREE_BOT_REGISTRATION_KEY ?? "",
+  // Intervalo (ms) em que os embeds de "Bots Free" abertos no Discord (lista e
+  // detalhe) sao atualizados sozinhos - reflete heartbeat, registro, guilds e
+  // a transicao para offline sem precisar de clique. Padrao: 20s.
+  freeBotPanelRefreshIntervalMs: Number(process.env.FREEBOT_PANEL_REFRESH_INTERVAL_MS ?? 20000)
 };
 
 function validateRuntimeConfig() {

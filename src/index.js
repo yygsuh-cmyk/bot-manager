@@ -10,6 +10,7 @@ const { startApiServer } = require("./api/server");
 const { sendPanelLog } = require("./services/logService");
 const { createCommands } = require("./discord/commands");
 const { createInteractionRouter } = require("./discord/interactionRouter");
+const { refreshTrackedFreeBotPanels } = require("./discord/panel/centralPanelController");
 const { registerCommands } = require("./bootstrap/registerCommands");
 const { syncApplicationEmojis } = require("./services/applicationEmojiService");
 const { setEmojiMap } = require("./services/emojiRegistry");
@@ -114,6 +115,18 @@ async function bootstrap() {
         });
       }
     }, 10 * 60 * 1000);
+
+    // Mantem os embeds de "Bots Free" (lista/detalhe) sincronizados com o
+    // estado real do freeBotsStore sem exigir clique: cobre heartbeat, novo
+    // registro, mudanca de servidores e a transicao para offline quando o
+    // Bot Free para de mandar heartbeat (ver isBotOnline/FREEBOT_OFFLINE_AFTER_MS).
+    setInterval(() => {
+      refreshTrackedFreeBotPanels(client, freeBotsStore).catch((error) => {
+        logger.warn("[FreeBotPanel] Erro ao atualizar paineis automaticamente.", {
+          message: error?.message
+        });
+      });
+    }, config.freeBotPanelRefreshIntervalMs);
 
     if (config.syncApplicationEmojisOnStart) {
       try {

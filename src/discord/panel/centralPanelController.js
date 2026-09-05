@@ -43,6 +43,7 @@ const {
   setFreeBotActive,
   setFreeBotBlocked
 } = require("../../services/freeBotService");
+const freeBotPanelTracker = require("./freeBotPanelTracker");
 const { formatExtendedDate, sendPanelLog } = require("../../services/logService");
 const { normalizeColor } = require("../../storage/panelStore");
 
@@ -70,6 +71,8 @@ async function executePanelCommand(interaction, deps) {
 }
 
 async function handleButton(interaction, deps) {
+  maybeUntrackFreeBotPanel(interaction);
+
   if (interaction.customId === "pc:cmd:ativar") {
     await showActivateModal(interaction);
     return;
@@ -211,6 +214,7 @@ async function handleButton(interaction, deps) {
 }
 
 async function handleStringSelect(interaction, deps) {
+  maybeUntrackFreeBotPanel(interaction);
   await requireAdmin(interaction, deps.settingsStore);
 
   const itemPanelType = getItemPanelType(interaction.customId);
@@ -267,6 +271,7 @@ async function handleStringSelect(interaction, deps) {
 }
 
 async function handleChannelSelect(interaction, deps) {
+  maybeUntrackFreeBotPanel(interaction);
   await requireAdmin(interaction, deps.settingsStore);
   const channelId = interaction.values[0];
 
@@ -285,6 +290,8 @@ async function handleChannelSelect(interaction, deps) {
 }
 
 async function handleModal(interaction, deps) {
+  maybeUntrackFreeBotPanel(interaction);
+
   if (interaction.customId === "pc:modal:activate") {
     await handleActivateModal(interaction, deps);
     return;
@@ -447,12 +454,14 @@ async function findLicenseOrThrow(licenseStore, key) {
 async function openFreeBots(interaction, deps, page = 0, notice = null) {
   const bots = await listFreeBots(deps.freeBotsStore);
   await interaction.update(asUpdate(buildFreeBotsPanel(bots, page, notice)));
+  freeBotPanelTracker.trackListView(interaction.channelId, interaction.message.id, page);
 }
 
 async function openFreeBotDetail(interaction, deps, botId, notice = null, isError = false) {
   const bot = await getFreeBot(deps.freeBotsStore, botId);
   if (!bot) throw new AppError("Bot Free nao encontrado.", { statusCode: 404, code: "FREEBOT_NOT_FOUND" });
   await interaction.update(asUpdate(buildFreeBotDetailPanel(bot, notice, isError)));
+  freeBotPanelTracker.trackDetailView(botId, interaction.channelId, interaction.message.id);
 }
 
 async function handleFreeBotToggleActive(interaction, deps, botId) {
@@ -470,6 +479,7 @@ async function handleFreeBotToggleActive(interaction, deps, botId) {
     updated.active ? 0x57f287 : 0xed4245
   );
   await interaction.update(asUpdate(buildFreeBotDetailPanel(updated, "Status atualizado com sucesso.")));
+  freeBotPanelTracker.trackDetailView(botId, interaction.channelId, interaction.message.id);
 }
 
 async function handleFreeBotToggleBlock(interaction, deps, botId) {
@@ -487,6 +497,73 @@ async function handleFreeBotToggleBlock(interaction, deps, botId) {
     updated.blocked ? 0xed4245 : 0x57f287
   );
   await interaction.update(asUpdate(buildFreeBotDetailPanel(updated, "Status atualizado com sucesso.")));
+  freeBotPanelTracker.trackDetailView(botId, interaction.channelId, interaction.message.id);
+}
+
+/**
+ * Atualiza sozinho (sem clique) os embeds de "Bots Free" (lista e detalhe)
+ * que estiverem abertos no Discord agora, refletindo o estado real gravado
+ * no freeBotsStore: heartbeat, novo registro, guilds, e o bot cair para
+ * offline por falta de heartbeat (o calculo de online/offline em si ja e
+ * feito por isBotOnline() dentro de buildFreeBotDetailPanel/buildFreeBotsPanel
+ * com base em lastSeenAt - aqui so garantimos que o embed seja re-renderizado
+ * periodicamente para essa transicao aparecer sem precisar de clique).
+ */
+async function refreshTrackedFreeBotPanels(client, freeBotsStore) {
+  const trackedLists = freeBotPanelTracker.getTrackedListViews();
+  if (trackedLists.length > 0) {
+    const bots = await listFreeBots(freeBotsStore);
+    for (const view of trackedLists) {
+      await applyPanelRefresh(client, view.channelId, view.messageId, buildFreeBotsPanel(bots, view.page));
+    }
+  }
+
+  for (const botId of freeBotPanelTracker.getAllTrackedDetailBotIds()) {
+    const views = freeBotPanelTracker.getTrackedDetailViews(botId);
+    if (views.length === 0) continue;
+
+    const bot = await getFreeBot(freeBotsStore, botId);
+    if (!bot) {
+      for (const view of views) freeBotPanelTracker.untrackMessage(view.channelId, view.messageId);
+      continue;
+    }
+
+    for (const view of views) {
+      await applyPanelRefresh(client, view.channelId, view.messageId, buildFreeBotDetailPanel(bot));
+    }
+  }
+}
+
+async function applyPanelRefresh(client, channelId, messageId, payload) {
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (!channel?.isTextBased?.()) {
+      freeBotPanelTracker.untrackMessage(channelId, messageId);
+      return;
+    }
+    const message = await channel.messages.fetch(messageId);
+    await message.edit(asUpdate(payload));
+  } catch (error) {
+    // Mensagem apagada, sem permissao, ou o admin ja navegou para outra tela
+    // nesse meio-tempo (o proprio handleButton/handleStringSelect ja teria
+    // destravado o rastreamento nesse ultimo caso) - para de tentar essa mensagem.
+    freeBotPanelTracker.untrackMessage(channelId, messageId);
+  }
+}
+
+/**
+ * Uma mensagem so mostra uma tela por vez. Quando o admin navega para
+ * qualquer lugar que NAO seja o painel de Bots Free (lista, detalhe, ou as
+ * proprias acoes de ativar/desativar/bloquear/desbloquear), essa mensagem
+ * para de ser alvo do refresh automatico - senao o proximo ciclo periodico
+ * sobrescreveria a tela nova com o antigo embed de Bots Free.
+ */
+function maybeUntrackFreeBotPanel(interaction) {
+  const customId = interaction.customId || "";
+  const isFreeBotNavigation = customId === "pc:admin:freebots" || customId.startsWith("pc:freebot:");
+  if (!isFreeBotNavigation && interaction.message?.id) {
+    freeBotPanelTracker.untrackMessage(interaction.channelId, interaction.message.id);
+  }
 }
 
 async function handleAppAction(interaction, deps, action) {
@@ -1182,5 +1259,6 @@ function formatDate(value) {
 
 module.exports = {
   createCentralPanelController,
-  executePanelCommand
+  executePanelCommand,
+  refreshTrackedFreeBotPanels
 };

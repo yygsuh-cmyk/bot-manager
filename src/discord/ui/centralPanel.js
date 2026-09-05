@@ -377,7 +377,7 @@ function buildFreeBotsPanel(bots, page = 0, notice = null, isError = false) {
     for (const bot of visible) {
       const online = isBotOnline(bot);
       lines.push(
-        `• **${bot.name || bot.botId}** \`${bot.botId}\` | ${bot.blocked ? "🔒 bloqueado" : bot.active ? "✅ ativo" : "⏸️ inativo"} | ${bot.status || (online ? "online" : "offline")} | servidores: \`${(bot.guilds || []).length}\``
+        `• **${bot.name || bot.botId}** \`${bot.botId}\` | ${bot.blocked ? "🔒 bloqueado" : bot.active ? "✅ ativo" : "⏸️ inativo"} | ${online ? "online" : "offline"} | servidores: \`${(bot.guilds || []).length}\``
       );
     }
   }
