@@ -1,6 +1,7 @@
 const express = require("express");
 const { createLicenseRoutes } = require("./routes/licenseRoutes");
 const { createFreeBotRoutes } = require("./routes/freeBotRoutes");
+const { createPaidBotRoutes } = require("./routes/paidBotRoutes");
 
 /**
  * server.js
@@ -12,7 +13,7 @@ const { createFreeBotRoutes } = require("./routes/freeBotRoutes");
  *   const { startApiServer } = require('./api/server');
  *   await startApiServer({ licenseStore, freeBotsStore, config, logger });
  */
-async function startApiServer({ licenseStore, freeBotsStore, config, logger }) {
+async function startApiServer({ licenseStore, freeBotsStore, paidBotsStore, config, logger }) {
   const app = express();
 
   // ── Middlewares globais ───────────────────────────────────────────────────
@@ -42,6 +43,15 @@ async function startApiServer({ licenseStore, freeBotsStore, config, logger }) {
   });
   app.use("/freebot", freeBotRoutes);
 
+  // ── Rotas do Bot Pago (integracao real) ───────────────────────────────────
+  const paidBotRoutes = createPaidBotRoutes({
+    paidBotsStore,
+    paidBotRegistrationKey: config.paidBotRegistrationKey,
+    apiKey: config.apiKey,
+    logger
+  });
+  app.use("/paidbot", paidBotRoutes);
+
   // ── 404 fallback ─────────────────────────────────────────────────────────
   app.use((_req, res) => {
     res.status(404).json({ error: "Not Found", message: "Endpoint not found." });
@@ -67,7 +77,17 @@ async function startApiServer({ licenseStore, freeBotsStore, config, logger }) {
           "POST /license/activate",
           "POST /freebot/register",
           "POST /freebot/heartbeat",
-          "GET /freebot/authorization"
+          "GET /freebot/authorization",
+          "POST /paidbot/register",
+          "POST /paidbot/heartbeat",
+          "GET /paidbot/authorization",
+          "GET /paidbot/commands",
+          "POST /paidbot/commands/ack",
+          "GET /paidbot/admin/list",
+          "POST /paidbot/admin/:installationId/command",
+          "POST /paidbot/admin/:installationId/enabled",
+          "POST /paidbot/admin/:installationId/blocked",
+          "POST /paidbot/admin/:installationId/authorized"
         ]
       });
       resolve(server);

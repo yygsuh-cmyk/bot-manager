@@ -53,7 +53,14 @@ const config = {
   // Intervalo (ms) em que os embeds de "Bots Free" abertos no Discord (lista e
   // detalhe) sao atualizados sozinhos - reflete heartbeat, registro, guilds e
   // a transicao para offline sem precisar de clique. Padrao: 20s.
-  freeBotPanelRefreshIntervalMs: Number(process.env.FREEBOT_PANEL_REFRESH_INTERVAL_MS ?? 20000)
+  freeBotPanelRefreshIntervalMs: Number(process.env.FREEBOT_PANEL_REFRESH_INTERVAL_MS ?? 20000),
+  // ── Bot Pago (integracao real Bot Pago <-> Manager) ───────────────────────────
+  paidBotsPath: path.join(dataDir, "paidbots.json"),
+  // Chave usada pelo Bot Pago para se registrar no Manager pela primeira vez
+  // (POST /paidbot/register). Depois do registro, o Manager emite um token
+  // proprio por instalacao, usado nas chamadas seguintes (heartbeat, etc).
+  // NUNCA e o token do Discord do Bot Pago - e um segredo proprio da integracao.
+  paidBotRegistrationKey: process.env.PAID_BOT_REGISTRATION_KEY ?? ""
 };
 
 function validateRuntimeConfig() {

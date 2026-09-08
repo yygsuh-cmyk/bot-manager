@@ -5,6 +5,7 @@ const { SettingsStore } = require("./storage/settingsStore");
 const { PanelStore } = require("./storage/panelStore");
 const { LicenseStore } = require("./storage/licenseStore");
 const { createFreeBotsStore } = require("./storage/freeBotsStore");
+const { createPaidBotsStore } = require("./storage/paidBotsStore");
 const { checkAndExpireLicenses } = require("./services/licenseService");
 const { startApiServer } = require("./api/server");
 const { sendPanelLog } = require("./services/logService");
@@ -16,6 +17,7 @@ const { syncApplicationEmojis } = require("./services/applicationEmojiService");
 const { setEmojiMap } = require("./services/emojiRegistry");
 const { assertCreditsIntegrity, logCreditsBanner } = require("./security/creditsGuard");
 const { verifyRuntimeArmor, startArmorWatch } = require("./security/runtimeArmor");
+const { acquireSingleInstanceLock } = require("./utils/singleInstanceLock");
 
 const logger = createLogger({
   level: config.logLevel,
@@ -24,6 +26,14 @@ const logger = createLogger({
 
 async function bootstrap() {
   validateRuntimeConfig();
+
+  // Impede que duas instancias deste processo fiquem logadas no Discord ao
+  // mesmo tempo com o mesmo token (ex: um restart que nao encerrou o
+  // processo anterior antes de subir o novo). Duas instancias simultaneas
+  // causam respostas duplicadas/perdidas em interactions (DiscordAPIError
+  // 10062/40060) e paineis desatualizados "vencendo" os atualizados.
+  const releaseSingleInstanceLock = acquireSingleInstanceLock(config.dataDir, logger);
+
   verifyRuntimeArmor();
   startArmorWatch({ logger });
   assertCreditsIntegrity();
@@ -54,9 +64,10 @@ async function bootstrap() {
   await checkAndExpireLicenses(licenseStore, logger);
 
   const freeBotsStore = createFreeBotsStore(config.freeBotsPath);
+  const paidBotsStore = createPaidBotsStore(config.paidBotsPath);
 
   try {
-    await startApiServer({ licenseStore, freeBotsStore, config, logger });
+    await startApiServer({ licenseStore, freeBotsStore, paidBotsStore, config, logger });
   } catch (error) {
     logger.error("Falha ao iniciar API HTTP de licencas. O bot continuara sem a API.", serializeError(error));
   }
@@ -80,6 +91,7 @@ async function bootstrap() {
     panelStore,
     licenseStore,
     freeBotsStore,
+    paidBotsStore,
     config,
     logger
   });
@@ -177,6 +189,7 @@ async function bootstrap() {
     shuttingDown = true;
     logger.info(`Sinal ${signal} recebido. Encerrando graciosamente...`);
     client.destroy();
+    releaseSingleInstanceLock();
     setTimeout(() => process.exit(0), 250).unref();
   };
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

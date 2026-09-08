@@ -15,12 +15,13 @@ const { createProvider } = require("../services/providerFactory");
 const { assertCreditsIntegrity } = require("../security/creditsGuard");
 const { assertArmorArmed } = require("../security/runtimeArmor");
 
-function createInteractionRouter({ commandMap, settingsStore, panelStore, licenseStore, freeBotsStore, config, logger }) {
+function createInteractionRouter({ commandMap, settingsStore, panelStore, licenseStore, freeBotsStore, paidBotsStore, config, logger }) {
   const centralPanel = createCentralPanelController({
     settingsStore,
     panelStore,
     licenseStore,
     freeBotsStore,
+    paidBotsStore,
     config,
     logger
   });

@@ -42,7 +42,8 @@ function buildHomePanel(settings, panel, notice = null) {
         button("pc:admin:general", "Configuracoes gerais", ButtonStyle.Secondary, "🎨")
       ],
       [
-        button("pc:admin:freebots", "Bots Free", ButtonStyle.Primary, "🆓")
+        button("pc:admin:freebots", "Bots Free", ButtonStyle.Primary, "🆓"),
+        button("pc:admin:paidbots", "Bots Pagos", ButtonStyle.Primary, "💎")
       ]
     ],
     accentColor: color(panel.visual.color),
@@ -470,6 +471,113 @@ function isBotOnline(bot) {
   return Date.now() - new Date(bot.lastSeenAt).getTime() < 5 * 60 * 1000;
 }
 
+const PAIDBOT_PAGE_SIZE = 5;
+
+/**
+ * Painel administrativo do Bot Pago (item 10 - controle REAL do Manager
+ * sobre enabled/blocked de uma instalacao). Mesmo padrao visual/estrutural
+ * do painel de Bots Free (buildFreeBotsPanel/buildFreeBotDetailPanel), mas
+ * operando sobre paidBotsStore/paidBotService: os botoes aqui chamam
+ * setPaidBotEnabled/setPaidBotBlocked de verdade (ver
+ * centralPanelController.handlePaidBotToggleEnabled/Blocked) - a mudanca e
+ * persistida no Manager e detectada pelo Bot Pago no proximo heartbeat/
+ * consulta de autorizacao, sem exigir reinicio.
+ */
+function buildPaidBotsPanel(bots, page = 0, notice = null, isError = false) {
+  const maxPage = Math.max(0, Math.ceil(bots.length / PAIDBOT_PAGE_SIZE) - 1);
+  const safePage = Math.max(0, Math.min(page, maxPage));
+  const visible = bots.slice(safePage * PAIDBOT_PAGE_SIZE, safePage * PAIDBOT_PAGE_SIZE + PAIDBOT_PAGE_SIZE);
+
+  const lines = [
+    "💎 **Gerenciar Bots Pagos**",
+    "━━━━━━━━━━━━━━━━━━━━━━━",
+    `**Instalacoes registradas:** \`${bots.length}\``,
+    `**Pagina:** \`${safePage + 1}/${maxPage + 1}\``
+  ];
+  if (bots.length === 0) {
+    lines.push("-# Nenhuma instalacao do Bot Pago se registrou no Manager ainda.");
+  } else {
+    for (const bot of visible) {
+      const online = isBotOnline(bot);
+      const state = bot.blocked ? "🔒 bloqueado" : !bot.enabled ? "⏸️ desativado" : bot.authorized ? "✅ ativo" : "⛔ nao autorizado";
+      lines.push(
+        `• **${bot.botName || bot.botId}** \`${bot.installationId}\` | ${state} | ${online ? "online" : "offline"} | servidores: \`${bot.guildCount ?? (bot.guilds || []).length}\``
+      );
+    }
+  }
+  if (notice) lines.push(`-# ${isError ? "❌" : "✅"} ${notice}`);
+
+  const select = new StringSelectMenuBuilder().setCustomId("pc:paidbot:select").setPlaceholder("Selecionar instalacao");
+  if (visible.length === 0) {
+    select.addOptions(new StringSelectMenuOptionBuilder().setLabel("Nenhuma instalacao").setValue("none"));
+    select.setDisabled(true);
+  } else {
+    for (const bot of visible) {
+      select.addOptions(
+        new StringSelectMenuOptionBuilder()
+          .setLabel((bot.botName || bot.botId).slice(0, 100))
+          .setDescription(`v${bot.version || "n/d"} • ${bot.guildCount ?? (bot.guilds || []).length} servidor(es)`.slice(0, 100))
+          .setValue(bot.installationId)
+      );
+    }
+  }
+
+  return buildDisplayResponse({
+    title: "Painel Central | Bots Pagos",
+    lines,
+    rows: [
+      [select],
+      [
+        button(`pc:paidbot:page:${safePage - 1}`, "Anterior", ButtonStyle.Secondary, "◀️", safePage <= 0),
+        button(`pc:paidbot:page:${safePage + 1}`, "Proxima", ButtonStyle.Secondary, "▶️", safePage >= maxPage),
+        button("pc:home", "Voltar", ButtonStyle.Secondary, "↩️")
+      ]
+    ],
+    accentColor: 0x2b87ff,
+    ephemeral: false
+  });
+}
+
+function buildPaidBotDetailPanel(bot, notice = null, isError = false) {
+  const online = isBotOnline(bot);
+  const guildLines = (bot.guilds || []).slice(0, 10).map((g) => `• ${g.guildName || g.guildId} \`${g.guildId}\``);
+  const effectivelyAuthorized = Boolean(bot.authorized) && !bot.blocked;
+  const lines = [
+    `💎 **${bot.botName || bot.botId}**`,
+    "━━━━━━━━━━━━━━━━━━━━━━━",
+    `**Instalacao (ID):** \`${bot.installationId}\``,
+    `**Bot ID:** \`${bot.botId}\``,
+    `**Versao:** \`${bot.version || "n/d"}\``,
+    `**Enabled:** \`${bot.enabled ? "sim" : "nao"}\``,
+    `**Blocked:** \`${bot.blocked ? "sim" : "nao"}\``,
+    `**Autorizado (efetivo):** \`${effectivelyAuthorized ? "sim" : "nao"}\``,
+    `**Status reportado:** \`${bot.status || "n/d"}\``,
+    `**Conexao:** ${online ? "🟢 online" : "🔴 offline"}`,
+    `**Servidores (${bot.guildCount ?? (bot.guilds || []).length}):**`,
+    ...(guildLines.length ? guildLines : ["-# nenhum servidor informado"]),
+    `**Ultimo heartbeat:** ${bot.lastSeenAt ? new Date(bot.lastSeenAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "nunca"}`,
+    `**Ultimo erro:** ${bot.lastError || "nenhum"}`
+  ];
+  if (!online) {
+    lines.push("-# Instalacao sem heartbeat recente. Alteracoes de enabled/blocked ficam salvas no Manager e sao aplicadas assim que o Bot Pago voltar a se conectar.");
+  }
+  if (notice) lines.push(`-# ${isError ? "❌" : "✅"} ${notice}`);
+
+  return buildDisplayResponse({
+    title: "Painel Central | Bot Pago",
+    lines,
+    rows: [
+      [
+        button(`pc:paidbot:toggle_enabled:${bot.installationId}`, bot.enabled ? "Desativar" : "Ativar", bot.enabled ? ButtonStyle.Danger : ButtonStyle.Success, bot.enabled ? "⏸️" : "▶️"),
+        button(`pc:paidbot:toggle_blocked:${bot.installationId}`, bot.blocked ? "Desbloquear" : "Bloquear", bot.blocked ? ButtonStyle.Success : ButtonStyle.Danger, bot.blocked ? "🔓" : "🔒"),
+        button("pc:admin:paidbots", "Voltar a lista", ButtonStyle.Secondary, "↩️")
+      ]
+    ],
+    accentColor: bot.blocked ? 0xed4245 : bot.enabled ? 0x57f287 : 0x99aab5,
+    ephemeral: false
+  });
+}
+
 function buildGeneralPanel(panel, notice = null) {
   const visual = panel.visual;
   const lines = [
@@ -587,6 +695,8 @@ module.exports = {
   buildItemEditor,
   buildLicensesPanel,
   buildLogsPanel,
+  buildPaidBotDetailPanel,
+  buildPaidBotsPanel,
   buildProductsPanel,
   color
 };

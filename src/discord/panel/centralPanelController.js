@@ -23,6 +23,8 @@ const {
   buildItemEditor,
   buildLicensesPanel,
   buildLogsPanel,
+  buildPaidBotDetailPanel,
+  buildPaidBotsPanel,
   buildProductsPanel,
   color
 } = require("../ui/centralPanel");
@@ -43,6 +45,12 @@ const {
   setFreeBotActive,
   setFreeBotBlocked
 } = require("../../services/freeBotService");
+const {
+  getPaidBot,
+  listPaidBots,
+  setPaidBotBlocked: setPaidBotBlockedFlag,
+  setPaidBotEnabled: setPaidBotEnabledFlag
+} = require("../../services/paidBotService");
 const freeBotPanelTracker = require("./freeBotPanelTracker");
 const { formatExtendedDate, sendPanelLog } = require("../../services/logService");
 const { normalizeColor } = require("../../storage/panelStore");
@@ -183,6 +191,27 @@ async function handleButton(interaction, deps) {
     return;
   }
 
+  if (interaction.customId === "pc:admin:paidbots") {
+    await openPaidBots(interaction, deps);
+    return;
+  }
+
+  if (interaction.customId.startsWith("pc:paidbot:page:")) {
+    const page = Number(interaction.customId.replace("pc:paidbot:page:", "")) || 0;
+    await openPaidBots(interaction, deps, page);
+    return;
+  }
+
+  if (interaction.customId.startsWith("pc:paidbot:toggle_enabled:")) {
+    await handlePaidBotToggleEnabled(interaction, deps, interaction.customId.replace("pc:paidbot:toggle_enabled:", ""));
+    return;
+  }
+
+  if (interaction.customId.startsWith("pc:paidbot:toggle_blocked:")) {
+    await handlePaidBotToggleBlocked(interaction, deps, interaction.customId.replace("pc:paidbot:toggle_blocked:", ""));
+    return;
+  }
+
   if (interaction.customId === "pc:admin:general") {
     await openGeneral(interaction, deps);
     return;
@@ -267,6 +296,13 @@ async function handleStringSelect(interaction, deps) {
     const value = interaction.values[0];
     if (value === "none") return;
     await openFreeBotDetail(interaction, deps, value);
+    return;
+  }
+
+  if (interaction.customId === "pc:paidbot:select") {
+    const value = interaction.values[0];
+    if (value === "none") return;
+    await openPaidBotDetail(interaction, deps, value);
   }
 }
 
@@ -480,6 +516,65 @@ async function handleFreeBotToggleActive(interaction, deps, botId) {
   );
   await interaction.update(asUpdate(buildFreeBotDetailPanel(updated, "Status atualizado com sucesso.")));
   freeBotPanelTracker.trackDetailView(botId, interaction.channelId, interaction.message.id);
+}
+
+async function openPaidBots(interaction, deps, page = 0, notice = null) {
+  const bots = await listPaidBots(deps.paidBotsStore);
+  await interaction.update(asUpdate(buildPaidBotsPanel(bots, page, notice)));
+}
+
+async function openPaidBotDetail(interaction, deps, installationId, notice = null, isError = false) {
+  const bot = await getPaidBot(deps.paidBotsStore, installationId);
+  if (!bot) throw new AppError("Instalacao do Bot Pago nao encontrada.", { statusCode: 404, code: "PAIDBOT_NOT_FOUND" });
+  await interaction.update(asUpdate(buildPaidBotDetailPanel(bot, notice, isError)));
+}
+
+/**
+ * Alterna 'enabled' de uma instalacao do Bot Pago (item 10). Chama
+ * paidBotService diretamente (mesmo processo/mesmo store usado pela rota
+ * HTTP /paidbot/admin/:id/enabled) em vez de bater na propria API HTTP - a
+ * alteracao e persistida no paidBotsStore imediatamente e sera aplicada
+ * pelo Bot Pago no proximo heartbeat/consulta de autorizacao (nao exige
+ * reinicio do Bot Pago).
+ */
+async function handlePaidBotToggleEnabled(interaction, deps, installationId) {
+  const bot = await getPaidBot(deps.paidBotsStore, installationId);
+  if (!bot) throw new AppError("Instalacao do Bot Pago nao encontrada.", { statusCode: 404, code: "PAIDBOT_NOT_FOUND" });
+
+  const updated = await setPaidBotEnabledFlag(deps.paidBotsStore, installationId, !bot.enabled);
+
+  await logAction(
+    interaction,
+    deps,
+    "paidbot_toggle",
+    `Bot Pago ${updated.enabled ? "ativado" : "desativado"}`,
+    `Instalacao \`${installationId}\` (${updated.botName || updated.botId}) foi ${updated.enabled ? "ativada" : "desativada"}.`
+  );
+
+  await interaction.update(asUpdate(buildPaidBotDetailPanel(updated, "Status atualizado com sucesso.")));
+}
+
+/**
+ * Alterna 'blocked' de uma instalacao do Bot Pago (item 10). Mesmo
+ * raciocinio de handlePaidBotToggleEnabled - blocked=true faz
+ * computeAuthorization() (paidBotService) devolver authorized=false ao Bot
+ * Pago mesmo que a flag crua authorized continue true.
+ */
+async function handlePaidBotToggleBlocked(interaction, deps, installationId) {
+  const bot = await getPaidBot(deps.paidBotsStore, installationId);
+  if (!bot) throw new AppError("Instalacao do Bot Pago nao encontrada.", { statusCode: 404, code: "PAIDBOT_NOT_FOUND" });
+
+  const updated = await setPaidBotBlockedFlag(deps.paidBotsStore, installationId, !bot.blocked);
+
+  await logAction(
+    interaction,
+    deps,
+    "paidbot_toggle",
+    `Bot Pago ${updated.blocked ? "bloqueado" : "desbloqueado"}`,
+    `Instalacao \`${installationId}\` (${updated.botName || updated.botId}) foi ${updated.blocked ? "bloqueada" : "desbloqueada"}.`
+  );
+
+  await interaction.update(asUpdate(buildPaidBotDetailPanel(updated, "Status atualizado com sucesso.")));
 }
 
 async function handleFreeBotToggleBlock(interaction, deps, botId) {
