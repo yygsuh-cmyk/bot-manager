@@ -169,6 +169,25 @@ async function bootstrap() {
 
   client.on("interactionCreate", interactionRouter);
 
+  // Listeners de diagnostico do discord.js: ajudam a identificar falhas na
+  // conexao com o gateway do Discord (rede, shard, invalidacao de sessao,
+  // avisos internos da lib) que nao aparecem como excecao no client.login.
+  client.on("error", (error) => {
+    logger.error("[Discord] client error.", serializeError(error));
+  });
+
+  client.on("shardError", (error, shardId) => {
+    logger.error(`[Discord] shardError (shard ${shardId}).`, serializeError(error));
+  });
+
+  client.on("invalidated", () => {
+    logger.error("[Discord] Sessao invalidada pelo Discord (invalidated). Sera necessario novo login.");
+  });
+
+  client.on("warn", (message) => {
+    logger.warn("[Discord] warn.", { message });
+  });
+
   process.on("unhandledRejection", (reason) => {
     logger.error("UnhandledRejection capturada.", serializeError(reason));
   });
@@ -195,7 +214,14 @@ async function bootstrap() {
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
   process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
-  await client.login(config.discordToken);
+  try {
+    logger.info("[Discord] Iniciando client.login...");
+    await client.login(config.discordToken);
+    logger.info("[Discord] client.login concluído.");
+  } catch (error) {
+    logger.error("[Discord] Falha no client.login.", serializeError(error));
+    throw error;
+  }
 }
 
 function serializeError(error) {
