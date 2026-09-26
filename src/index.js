@@ -32,8 +32,49 @@ const logger = createLogger({
   errorLogPath: config.errorLogPath
 });
 
+function networkPreflightCheck() {
+  const targets = [
+    { host: "discord.com", port: 443 },
+    { host: "gateway.discord.gg", port: 443 },
+    { host: "8.8.8.8", port: 53 }
+  ];
+
+  return Promise.all(
+    targets.map(
+      (target) =>
+        new Promise((resolve) => {
+          const startedAt = Date.now();
+          const socket = net.connect({ host: target.host, port: target.port });
+          socket.setTimeout(10000);
+
+          const finish = (status, extra) => {
+            socket.destroy();
+            const elapsedMs = Date.now() - startedAt;
+            if (status === "ok") {
+              logger.info(`[NetPreflight] Conexao TCP OK com ${target.host}:${target.port} em ${elapsedMs}ms.`);
+            } else {
+              logger.error(`[NetPreflight] Falha ao conectar em ${target.host}:${target.port} apos ${elapsedMs}ms.`, {
+                status,
+                ...extra
+              });
+            }
+            resolve();
+          };
+
+          socket.once("connect", () => finish("ok"));
+          socket.once("timeout", () => finish("timeout"));
+          socket.once("error", (error) => finish("error", serializeError(error)));
+        })
+    )
+  ).then(() => {
+    logger.info("[NetPreflight] Teste de conectividade de saida concluido.");
+  });
+}
+
 async function bootstrap() {
   validateRuntimeConfig();
+
+  await networkPreflightCheck();
 
   // Impede que duas instancias deste processo fiquem logadas no Discord ao
   // mesmo tempo com o mesmo token (ex: um restart que nao encerrou o
