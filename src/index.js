@@ -1,3 +1,11 @@
+const dns = require("node:dns");
+dns.setDefaultResultOrder("ipv4first");
+
+const net = require("node:net");
+if (typeof net.setDefaultAutoSelectFamily === "function") {
+  net.setDefaultAutoSelectFamily(false);
+}
+
 const { Client, Collection, GatewayIntentBits } = require("discord.js");
 const { config, validateRuntimeConfig } = require("./config/appConfig");
 const { createLogger } = require("./utils/logger");
