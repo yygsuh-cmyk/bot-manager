@@ -2,6 +2,7 @@ const dns = require("node:dns");
 dns.setDefaultResultOrder("ipv4first");
 
 const net = require("node:net");
+const https = require("node:https");
 if (typeof net.setDefaultAutoSelectFamily === "function") {
   net.setDefaultAutoSelectFamily(false);
 }
@@ -71,10 +72,61 @@ function networkPreflightCheck() {
   });
 }
 
+function checkProxyEnvVars() {
+  const proxyVars = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"];
+  const found = proxyVars.filter((name) => process.env[name]);
+  if (found.length > 0) {
+    logger.warn("[NetPreflight] Variaveis de proxy detectadas no ambiente (podem estar desviando requisicoes HTTPS).", {
+      variaveisDefinidas: found
+    });
+  } else {
+    logger.info("[NetPreflight] Nenhuma variavel de proxy (HTTP_PROXY/HTTPS_PROXY/etc) definida no ambiente.");
+  }
+}
+
+function httpsPreflightCheck() {
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    const req = https.request(
+      {
+        host: "discord.com",
+        path: "/api/v10/gateway",
+        method: "GET",
+        timeout: 10000
+      },
+      (res) => {
+        const elapsedMs = Date.now() - startedAt;
+        res.resume();
+        res.on("end", () => {
+          logger.info(`[NetPreflight] HTTPS GET /api/v10/gateway respondeu status ${res.statusCode} em ${elapsedMs}ms.`);
+          resolve();
+        });
+      }
+    );
+
+    req.on("timeout", () => {
+      const elapsedMs = Date.now() - startedAt;
+      logger.error(`[NetPreflight] HTTPS GET /api/v10/gateway travou (timeout) apos ${elapsedMs}ms.`);
+      req.destroy();
+      resolve();
+    });
+
+    req.on("error", (error) => {
+      const elapsedMs = Date.now() - startedAt;
+      logger.error(`[NetPreflight] HTTPS GET /api/v10/gateway falhou apos ${elapsedMs}ms.`, serializeError(error));
+      resolve();
+    });
+
+    req.end();
+  });
+}
+
 async function bootstrap() {
   validateRuntimeConfig();
 
+  checkProxyEnvVars();
   await networkPreflightCheck();
+  await httpsPreflightCheck();
 
   // Impede que duas instancias deste processo fiquem logadas no Discord ao
   // mesmo tempo com o mesmo token (ex: um restart que nao encerrou o
