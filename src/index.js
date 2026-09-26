@@ -8,6 +8,7 @@ if (typeof net.setDefaultAutoSelectFamily === "function") {
 }
 
 const { Client, Collection, GatewayIntentBits } = require("discord.js");
+const { Agent: UndiciAgent } = require("undici");
 const { config, validateRuntimeConfig } = require("./config/appConfig");
 const { createLogger } = require("./utils/logger");
 const { SettingsStore } = require("./storage/settingsStore");
@@ -173,9 +174,16 @@ async function bootstrap() {
     logger.error("Falha ao iniciar API HTTP de licencas. O bot continuara sem a API.", serializeError(error));
   }
 
+  const restAgent = new UndiciAgent({
+    connectTimeout: 10_000,
+    headersTimeout: 15_000,
+    bodyTimeout: 15_000,
+    keepAliveTimeout: 10_000
+  });
+
   const client = new Client({
     intents: [GatewayIntentBits.Guilds],
-    rest: { timeout: 20000 }
+    rest: { timeout: 20000, agent: restAgent }
   });
 
   const commands = createCommands({
@@ -322,7 +330,7 @@ async function bootstrap() {
     loginAttempt += 1;
     try {
       logger.info(`[Discord] Iniciando client.login... (tentativa ${loginAttempt}/${maxLoginAttempts})`);
-      await client.login(config.discordToken);
+      await loginWithHardTimeout(client, config.discordToken, 15_000);
       logger.info("[Discord] client.login concluído.");
       break;
     } catch (error) {
@@ -330,11 +338,47 @@ async function bootstrap() {
       if (loginAttempt >= maxLoginAttempts) {
         throw error;
       }
+      try {
+        client.destroy();
+      } catch {
+        // Ignorado: client pode nao ter chegado a inicializar conexao nenhuma.
+      }
       const backoffMs = Math.min(5000 * loginAttempt, 30000);
       logger.info(`[Discord] Tentando novamente em ${backoffMs}ms...`);
       await new Promise((resolve) => setTimeout(resolve, backoffMs));
     }
   }
+}
+
+function loginWithHardTimeout(client, token, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(
+        new Error(
+          `client.login nao respondeu em ${timeoutMs}ms (timeout forcado no codigo, nao depende de config interna do discord.js/undici).`
+        )
+      );
+    }, timeoutMs);
+
+    client.login(token).then(
+      (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(result);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }
 
 function serializeError(error) {
