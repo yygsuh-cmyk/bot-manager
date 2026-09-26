@@ -73,7 +73,8 @@ async function bootstrap() {
   }
 
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [GatewayIntentBits.Guilds],
+    rest: { timeout: 20000 }
   });
 
   const commands = createCommands({
@@ -214,13 +215,24 @@ async function bootstrap() {
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
   process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
-  try {
-    logger.info("[Discord] Iniciando client.login...");
-    await client.login(config.discordToken);
-    logger.info("[Discord] client.login concluído.");
-  } catch (error) {
-    logger.error("[Discord] Falha no client.login.", serializeError(error));
-    throw error;
+  const maxLoginAttempts = 5;
+  let loginAttempt = 0;
+  for (;;) {
+    loginAttempt += 1;
+    try {
+      logger.info(`[Discord] Iniciando client.login... (tentativa ${loginAttempt}/${maxLoginAttempts})`);
+      await client.login(config.discordToken);
+      logger.info("[Discord] client.login concluído.");
+      break;
+    } catch (error) {
+      logger.error("[Discord] Falha no client.login.", serializeError(error));
+      if (loginAttempt >= maxLoginAttempts) {
+        throw error;
+      }
+      const backoffMs = Math.min(5000 * loginAttempt, 30000);
+      logger.info(`[Discord] Tentando novamente em ${backoffMs}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+    }
   }
 }
 
